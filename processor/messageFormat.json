@@ -1,0 +1,6 @@
+{
+  "videoId": "string",
+  "s3Key": "string",
+  "userId": "string",
+  "operation": "string"
+}
