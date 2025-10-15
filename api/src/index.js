@@ -16,6 +16,7 @@ import authRoutes from "./routes/authRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import pool, { initDB } from "./config/db.js";
 import cpuRoutes from "./routes/cpuRoutes.js";
+import memcached from "./config/cacheClient.js";
 
 const app = express();
 
@@ -28,8 +29,29 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/cpu", cpuRoutes);
 
 // Root test route
+// Root test route
 app.get("/", (_req, res) => {
   res.send("🚀 CAB432 A2 Video API is running!");
+});
+
+// Test ElastiCache connection
+app.get("/test-cache", (req, res) => {
+  const key = "demoKey";
+  memcached.set(key, "Hello from ElastiCache!", 10, (err) => {
+    if (err) {
+      console.error("Set error:", err);
+      return res.status(500).send("Error writing to cache");
+    }
+
+    memcached.get(key, (err, data) => {
+      if (err) {
+        console.error("Get error:", err);
+        return res.status(500).send("Error reading from cache");
+      }
+
+      res.send(`✅ Cache working! Retrieved: ${data}`);
+    });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -47,5 +69,6 @@ const startServer = async () => {
 };
 
 startServer();
+
 
 

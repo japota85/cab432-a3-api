@@ -13,6 +13,7 @@ import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import redis from "../config/redisClient.js";
 import { sendJobMessage } from "../utils/sendJobMessage.js";
+import { sendToQueue } from "../utils/sendToQueue.js";
 
 const router = express.Router();
 
@@ -99,7 +100,15 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
       Key: processedKey,
       Body: fs.createReadStream(processedPath),
       ContentType: "video/mp4"
+      
     }));
+
+    await sendToQueue({
+      filename: uploadedFileName,
+      user_id: req.user.id,
+      action: "PROCESS_VIDEO",
+      timestamp: new Date().toISOString(),
+    });    
     
     await sendJobMessage(newVideo.id, s3Key, req.user.username);
     
