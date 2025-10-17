@@ -1,26 +1,23 @@
 import Memcached from "memcached";
 
-const memcached = new Memcached(
-  `${process.env.MEMCACHED_HOST}:${process.env.MEMCACHED_PORT}`,
-  { retries: 10, retry: 10000, remove: true }
-);
-
-memcached.on("issue", (details) => {
-  console.error("⚠️  Memcached issue:", details);
-});
-
-memcached.on("failure", (details) => {
-  console.error("❌ Memcached server failed:", details.server);
-});
-
-memcached.on("reconnecting", (details) => {
-  console.log("🔄 Reconnecting to Memcached:", details.server);
-});
-
-memcached.on("reconnect", (details) => {
-  console.log("✅ Reconnected to Memcached:", details.server);
-});
-
-console.log("✅ Memcached client configured:", process.env.MEMCACHED_HOST);
+let memcached;
+try {
+  const host = process.env.MEMCACHED_HOST;
+  const port = process.env.MEMCACHED_PORT;
+  const endpoint = `${host}:${port}`;
+  memcached = new Memcached(endpoint, { retries: 2, retry: 2000, timeout: 2000 });
+  console.log(`✅ Memcached client configured: ${endpoint}`);
+} catch (err) {
+  console.error("❌ Failed to connect to ElastiCache. Falling back to local mock cache.", err);
+  memcached = {
+    store: {},
+    set: (key, val, ttl, cb) => {
+      memcached.store[key] = val;
+      setTimeout(() => delete memcached.store[key], ttl * 1000);
+      cb && cb(null);
+    },
+    get: (key, cb) => cb(null, memcached.store[key]),
+  };
+}
 
 export default memcached;
