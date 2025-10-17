@@ -1,4 +1,5 @@
-import AWS from "aws-sdk";
+const AWS = require("aws-sdk");
+require("dotenv").config();
 
 const sqs = new AWS.SQS({ region: process.env.AWS_REGION });
 const queueUrl = process.env.SQS_QUEUE_URL;
@@ -20,11 +21,9 @@ async function pollMessages() {
         for (const message of data.Messages) {
           console.log("📩 Received message:", message.Body);
 
-          // Example: Simulate video processing
           const body = JSON.parse(message.Body);
           console.log(`Processing video ID: ${body.videoId} with task: ${body.task}`);
 
-          // Delete message after successful processing
           await sqs
             .deleteMessage({
               QueueUrl: queueUrl,
