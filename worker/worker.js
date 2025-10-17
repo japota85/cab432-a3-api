@@ -1,48 +1,51 @@
 const AWS = require("aws-sdk");
-import path from "path";
+const dotenv = require("dotenv");
+const path = require("path");
 
-require("dotenv").config({
-  path: path.resolve(__dirname, "../api/.env"),
-});
+// load the .env from the API folder
+dotenv.config({ path: path.resolve(__dirname, "../api/.env") });
 
+console.log("Loaded SQS URL:", process.env.SQS_QUEUE_URL);
 
-const sqs = new AWS.SQS({ region: process.env.AWS_REGION });
-const queueUrl = process.env.SQS_QUEUE_URL;
+AWS.config.update({ region: process.env.AWS_REGION });
+
+const sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
 
 async function pollMessages() {
   console.log("🎧 Worker started, polling messages from SQS...");
 
   const params = {
-    QueueUrl: queueUrl,
+    QueueUrl: process.env.SQS_QUEUE_URL,
     MaxNumberOfMessages: 1,
-    WaitTimeSeconds: 10
+    WaitTimeSeconds: 10,
   };
 
-  while (true) {
-    try {
-      const data = await sqs.receiveMessage(params).promise();
+  try {
+    const data = await sqs.receiveMessage(params).promise();
 
-      if (data.Messages && data.Messages.length > 0) {
-        for (const message of data.Messages) {
-          console.log("📩 Received message:", message.Body);
+    if (data.Messages && data.Messages.length > 0) {
+      const message = data.Messages[0];
+      console.log("📩 Received message:", message.Body);
 
-          const body = JSON.parse(message.Body);
-          console.log(`Processing video ID: ${body.videoId} with task: ${body.task}`);
+      const body = JSON.parse(message.Body);
+      console.log(`Processing video ID: ${body.videoId}, task: ${body.task}`);
 
-          await sqs
-            .deleteMessage({
-              QueueUrl: queueUrl,
-              ReceiptHandle: message.ReceiptHandle
-            })
-            .promise();
+      await sqs
+        .deleteMessage({
+          QueueUrl: process.env.SQS_QUEUE_URL,
+          ReceiptHandle: message.ReceiptHandle,
+        })
+        .promise();
 
-          console.log("✅ Message processed and deleted");
-        }
-      }
-    } catch (err) {
-      console.error("❌ Error receiving or processing message:", err);
+      console.log("✅ Message processed and deleted");
+    } else {
+      console.log("No messages in queue...");
     }
+  } catch (err) {
+    console.error("❌ Error receiving or processing message:", err);
   }
+
+  setTimeout(pollMessages, 5000);
 }
 
 pollMessages();
