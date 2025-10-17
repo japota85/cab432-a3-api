@@ -1,5 +1,10 @@
 const AWS = require("aws-sdk");
-require("dotenv").config();
+import path from "path";
+
+require("dotenv").config({
+  path: path.resolve(__dirname, "../api/.env"),
+});
+
 
 const sqs = new AWS.SQS({ region: process.env.AWS_REGION });
 const queueUrl = process.env.SQS_QUEUE_URL;
