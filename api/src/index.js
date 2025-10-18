@@ -16,7 +16,7 @@ import authRoutes from "./routes/authRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import pool, { initDB } from "./config/db.js";
 import cpuRoutes from "./routes/cpuRoutes.js";
-import memcached from "./config/cacheClient.js";
+import memcached, { setCache, getCache } from "./config/cacheClient.js";
 
 const app = express();
 
@@ -34,24 +34,18 @@ app.get("/", (_req, res) => {
   res.send("🚀 CAB432 A2 Video API is running!");
 });
 
-// Test ElastiCache connection
-app.get("/test-cache", (req, res) => {
+// Test ElastiCache connection using helper functions
+app.get("/test-cache", async (req, res) => {
   const key = "demoKey";
-  memcached.set(key, "Hello from ElastiCache!", 10, (err) => {
-    if (err) {
-      console.error("Set error:", err);
-      return res.status(500).send("Error writing to cache");
-    }
-
-    memcached.get(key, (err, data) => {
-      if (err) {
-        console.error("Get error:", err);
-        return res.status(500).send("Error reading from cache");
-      }
-
-      res.send(`✅ Cache working! Retrieved: ${data}`);
-    });
-  });
+  const value = "Hello from ElastiCache!";
+  try {
+    await setCache(key, value, 10);
+    const result = await getCache(key);
+    res.send(`✅ Cache working! Retrieved: ${result}`);
+  } catch (err) {
+    console.error("Cache test error:", err);
+    res.status(500).send("❌ Error testing cache connection");
+  }
 });
 
 const PORT = process.env.PORT || 3000;

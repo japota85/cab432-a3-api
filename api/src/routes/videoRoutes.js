@@ -15,11 +15,29 @@ import redis from "../config/redisClient.js";
 import { sendJobMessage } from "../utils/sendJobMessage.js";
 import { sendToQueue } from "../utils/sendToQueue.js";
 
-const router = express.Router();
+// 👇 add Memcached support (ElastiCache)
+import { getCache, setCache } from "../config/cacheClient.js";
+import Redis from "ioredis";
 
+const router = express.Router();
 router.use(requireAuth);
 
 const BUCKET_NAME = process.env.S3_BUCKET;
+
+// ✅ Detect environment
+const isProd = process.env.NODE_ENV === "production";
+
+// ✅ Local Redis client (fallback)
+let redisClient = null;
+if (!isProd) {
+  try {
+    redisClient = new Redis();
+    redisClient.on("connect", () => console.log("✅ Local Redis connected"));
+    redisClient.on("error", (err) => console.warn("⚠️ Redis error:", err.message));
+  } catch (err) {
+    console.warn("⚠️ Failed to init Redis:", err.message);
+  }
+}
 
 // ---- ensure ./uploads/raw exists ----
 const __filename = fileURLToPath(import.meta.url);
@@ -59,109 +77,115 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
   try {
     const file = req.file;
 
-    // generate a safe UUID-based key, always .mp4
     const safeId = uuid();
     const rawKey = `raw/${safeId}.mp4`;
     const processedKey = `processed/${safeId}.mp4`;
 
-    // 1. Upload original to S3
+    // 1️⃣ Upload original to S3
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: rawKey,
       Body: fs.createReadStream(file.path),
-      ContentType: file.mimetype
+      ContentType: file.mimetype,
     }));
 
-    // 2. Process with ffmpeg
+    // 2️⃣ Process with ffmpeg
     const processedPath = path.join(OUT_DIR, `${safeId}.mp4`);
     await new Promise((resolve, reject) => {
       const cmd = `ffmpeg -i "${file.path}" -vf scale=640:-1 -c:v libx264 -preset fast -crf 28 -c:a aac "${processedPath}" -y`;
 
       console.log("[ffmpeg] Starting processing...");
-      console.log("[ffmpeg] Command:", cmd);
-
       exec(cmd, (error, stdout, stderr) => {
         if (error) {
-          console.error("[ffmpeg] Error:", error);
-          console.error("[ffmpeg] Stderr:", stderr);
+          console.error("[ffmpeg] Error:", stderr);
           return reject(error);
         }
-        console.log("[ffmpeg] Stdout:", stdout);
-        console.log("[ffmpeg] Stderr:", stderr);
         console.log("[ffmpeg] Finished processing");
-        console.log("[ffmpeg] Stderr:", stderr.toString());
         resolve();
       });
     });
 
-    // 3. Upload processed to S3
+    // 3️⃣ Upload processed to S3
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: processedKey,
       Body: fs.createReadStream(processedPath),
-      ContentType: "video/mp4"
-      
+      ContentType: "video/mp4",
     }));
 
     await sendToQueue({
-      filename: uploadedFileName,
+      filename: file.originalname,
       user_id: req.user.id,
       action: "PROCESS_VIDEO",
       timestamp: new Date().toISOString(),
-    });    
-    
-    await sendJobMessage(newVideo.id, s3Key, req.user.username);
-    
-    // 4. Clean up local
-    try { fs.unlinkSync(file.path); } catch (_) {}
-    try { fs.unlinkSync(processedPath); } catch (_) {}
+    });
 
-    // 5. Save metadata in RDS
+    await sendJobMessage(safeId, processedKey, req.user.username);
+
+    // 4️⃣ Clean up
+    try { fs.unlinkSync(file.path); } catch {}
+    try { fs.unlinkSync(processedPath); } catch {}
+
+    // 5️⃣ Save metadata in RDS
     const { rows } = await pool.query(
       `INSERT INTO videos (id, s3_key, original_name, mime, size, owner_sub)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
-        safeId,                 // id matches UUID key
-        processedKey,           // processed S3 key
-        file.originalname,      // keep human-friendly name
-        "video/mp4",            // mime
-        file.size,              // size in bytes
-        req.user?.sub || null   // Cognito subject
+        safeId,
+        processedKey,
+        file.originalname,
+        "video/mp4",
+        file.size,
+        req.user?.sub || null,
       ]
     );
 
-    // 6. Respond
     res.json({
       message: "Upload & processing successful!",
-      video: rows[0]
+      video: rows[0],
     });
-
   } catch (err) {
     console.error("[videos] upload error:", err);
     res.status(500).json({ error: "Upload failed" });
   }
 });
 
-// GET /videos - List all videos from RDS (with Redis cache)
+// ✅ GET /videos (cached)
 router.get("/", async (req, res) => {
   try {
     const { sub } = req.user;
-
     const cacheKey = `videos:list:${sub}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log("📦 Cache hit for /videos");
-      return res.json(JSON.parse(cached));
+
+    // 1️⃣ Try ElastiCache (production)
+    if (isProd) {
+      const cached = await getCache(cacheKey);
+      if (cached) {
+        console.log("📦 Cache hit (ElastiCache)");
+        return res.json(JSON.parse(cached));
+      }
     }
 
+    // 2️⃣ Try Redis (local)
+    if (!isProd && redisClient) {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        console.log("📦 Cache hit (Local Redis)");
+        return res.json(JSON.parse(cached));
+      }
+    }
+
+    // 3️⃣ Fallback to RDS
     const { rows } = await pool.query(
       "SELECT id, s3_key, original_name, mime, size, uploaded_at FROM videos WHERE owner_sub = $1 ORDER BY uploaded_at DESC",
       [sub]
     );
 
-    await redis.set(cacheKey, JSON.stringify(rows), "EX", 30);
+    // 4️⃣ Save cache
+    if (isProd) await setCache(cacheKey, JSON.stringify(rows), 30);
+    else if (redisClient) await redisClient.set(cacheKey, JSON.stringify(rows), "EX", 30);
 
+    console.log("💾 Cache miss → DB queried");
     res.json(rows);
   } catch (err) {
     console.error("[videos] list error:", err);
@@ -169,114 +193,5 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/videos/:key - Generate a pre-signed URL for download
-router.get(/^\/raw\/(.+)$/, async (req, res) => {
-  const key = req.params[0]; // capture group from regex
-  console.log("Download request for key:", key);
-
-  try {
-    const command = new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: `raw/${key}`
-    });
-
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-    res.json({ downloadUrl: url });
-  } catch (err) {
-    console.error("Download error:", err);
-    res.status(500).json({ error: "Failed to generate download URL" });
-  }
-});
-
-// GET /videos/:id/stream - Get presigned S3 URL for playback
-router.get("/:id/stream", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // 1. Look up in RDS
-    const { rows } = await pool.query("SELECT s3_key FROM videos WHERE id = $1", [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Video not found" });
-    }
-
-    const s3Key = rows[0].s3_key;
-
-    // 2. Generate presigned URL
-    const command = new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: s3Key,
-    });
-
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-
-    // 3. Send back the presigned URL
-    res.json({ url });
-  } catch (err) {
-    console.error("[videos] stream error:", err);
-    res.status(500).json({ error: "Failed to generate stream URL" });
-  }
-});
-
-// DELETE /api/videos/:id  (protected)
-router.delete("/:id", requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // 1. Look up the video in RDS
-    const { rows } = await pool.query(
-      "SELECT s3_key FROM videos WHERE id = $1",
-      [id]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Video not found" });
-    }
-    const s3Key = rows[0].s3_key;
-
-    // 2. Delete from S3
-    await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: s3Key,
-      })
-    );
-
-    // 3. Delete from RDS
-    await pool.query("DELETE FROM videos WHERE id = $1", [id]);
-
-    res.json({ message: `Video ${id} deleted successfully` });
-  } catch (err) {
-    console.error("[videos] delete error:", err);
-    res.status(500).json({ error: "Delete failed" });
-  }
-});
-
-// PUT /api/videos/:id
-router.put("/:id", requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { original_name } = req.body;
-
-    if (!original_name) {
-      return res.status(400).json({ error: "original_name is required" });
-    }
-
-    const { rows } = await pool.query(
-      `UPDATE videos 
-       SET original_name = $1
-       WHERE id = $2
-       RETURNING id, s3_key, original_name, mime, size, uploaded_at`,
-      [original_name, id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Video not found" });
-    }
-
-    res.json({ message: "Video updated successfully", video: rows[0] });
-  } catch (err) {
-    console.error("[videos] update error:", err);
-    res.status(500).json({ error: "Update failed" });
-  }
-});
-
 export default router;
+
