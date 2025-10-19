@@ -1,12 +1,18 @@
-FROM node:18-slim
+# Use Node 18
+FROM node:18
+
+# Set working directory
 WORKDIR /usr/src/app
 
+# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 
+# Copy everything else (including src and .env)
 COPY . .
 
+# Expose your API port
 EXPOSE 3000
-ENV AWS_REGION=ap-southeast-2
 
-CMD ["node", "index.js"]
+# Start the app using the correct entry point
+CMD ["node", "src/index.js"]
