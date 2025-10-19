@@ -75,20 +75,16 @@ router.post("/login", async (req, res) => {
         refreshToken: authResult.RefreshToken,
       },
     });
-  } catch (error) {
-    console.error("[auth] login error:", error);
+} catch (error) {
+  console.error("[auth] login error:", error);
 
-    const message = error.message || "Internal error";
-    const type = error.name || error.__type || "UnknownError";
-    const awsInfo = {
-      statusCode: error.$metadata?.httpStatusCode,
-      requestId: error.$metadata?.requestId,
-      errorType: error.$response?.headers?.["x-amzn-errortype"],
-      errorMessage: error.$response?.headers?.["x-amzn-errormessage"],
-    };
+  res.status(500).json({
+    error: error.message || "Internal error",
+    type: error.name || error.__type || "UnknownError",
+    awsInfo: error.$metadata || null,
+  });
+}
 
-    res.status(500).json({ error: message, type, awsInfo });
-  }
 });
 
 // Protected route
