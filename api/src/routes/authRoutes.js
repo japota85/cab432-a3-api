@@ -17,33 +17,28 @@ function generateSecretHash(username, clientId, clientSecret) {
 // Login route
 router.post("/login", async (req, res) => {
   try {
-    const { username, password } = req.body ?? {};
-    if (!username || !password) {
-      return res.status(400).json({ error: "username and password are required" });
-    }
+// inside router.post("/login", async (req, res) => { ... })
 
-    // Detect whether to use client secret or not
-    const hasSecret = !!process.env.COGNITO_CLIENT_SECRET?.trim();
-    const clientId = process.env.COGNITO_CLIENT_ID;
-    const clientSecret = process.env.COGNITO_CLIENT_SECRET;
+const { username, password } = req.body;
+if (!username || !password) {
+  return res.status(400).json({ error: "username and password are required" });
+}
 
-    // Generate secret hash only if secret is present
-    const secretHash = hasSecret
-      ? crypto.createHmac("SHA256", clientSecret).update(username + clientId).digest("base64")
-      : undefined;
+// compute SecretHash exactly how Cognito expects it
+const secretHash = crypto
+  .createHmac("SHA256", process.env.COGNITO_CLIENT_SECRET)
+  .update(username + process.env.COGNITO_CLIENT_ID)
+  .digest("base64");
 
-    // Choose correct AuthFlow
-    const authFlow = hasSecret ? "USER_PASSWORD_AUTH" : "USER_SRP_AUTH";
-
-    const params = {
-      AuthFlow: authFlow,
-      ClientId: clientId,
-      AuthParameters: {
-        USERNAME: username,
-        PASSWORD: password,
-        ...(secretHash && { SECRET_HASH: secretHash }),
-      },
-    };
+const params = {
+  AuthFlow: "USER_PASSWORD_AUTH", // must match your client config
+  ClientId: process.env.COGNITO_CLIENT_ID,
+  AuthParameters: {
+    USERNAME: username,
+    PASSWORD: password,
+    SECRET_HASH: secretHash,
+  },
+};
 
     const command = new InitiateAuthCommand(params);
     const response = await cognito.send(command);
