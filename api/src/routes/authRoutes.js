@@ -22,11 +22,13 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "username and password are required" });
     }
 
-    const secretHash = generateSecretHash(
-      username,
-      process.env.COGNITO_CLIENT_ID,
-      process.env.COGNITO_CLIENT_SECRET
-    );
+    const secretHash = process.env.COGNITO_CLIENT_SECRET
+      ? generateSecretHash(
+          username,
+          process.env.COGNITO_CLIENT_ID,
+          process.env.COGNITO_CLIENT_SECRET
+        )
+      : undefined;
 
     const command = new InitiateAuthCommand({
       AuthFlow: "USER_PASSWORD_AUTH",
@@ -34,7 +36,7 @@ router.post("/login", async (req, res) => {
       AuthParameters: {
         USERNAME: username,
         PASSWORD: password,
-        SECRET_HASH: secretHash,
+        ...(secretHash && { SECRET_HASH: secretHash }),
       },
     });
 
