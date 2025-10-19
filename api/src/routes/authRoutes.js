@@ -17,28 +17,30 @@ function generateSecretHash(username, clientId, clientSecret) {
 // Login route
 router.post("/login", async (req, res) => {
   try {
-// inside router.post("/login", async (req, res) => { ... })
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: "username and password are required" });
+    }
 
-const { username, password } = req.body;
-if (!username || !password) {
-  return res.status(400).json({ error: "username and password are required" });
-}
+    // compute SecretHash exactly how Cognito expects it
+    const secretHash = generateSecretHash(
+      username,
+      process.env.COGNITO_CLIENT_ID,
+      process.env.COGNITO_CLIENT_SECRET
+    );
 
-// compute SecretHash exactly how Cognito expects it
-const secretHash = crypto
-  .createHmac("SHA256", process.env.COGNITO_CLIENT_SECRET)
-  .update(username + process.env.COGNITO_CLIENT_ID)
-  .digest("base64");
-
-const params = {
-  AuthFlow: "USER_PASSWORD_AUTH", // must match your client config
-  ClientId: process.env.COGNITO_CLIENT_ID,
-  AuthParameters: {
-    USERNAME: username,
-    PASSWORD: password,
-    SECRET_HASH: secretHash,
-  },
-};
+    const params = {
+      AuthFlow: "USER_PASSWORD_AUTH", // must match your client config
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      AuthParameters: {
+        USERNAME: username,
+        PASSWORD: password,
+        SECRET_HASH: secretHash,
+      },
+      ClientMetadata: {
+        username: username,
+      },
+    };
 
     const command = new InitiateAuthCommand(params);
     const response = await cognito.send(command);
@@ -46,13 +48,13 @@ const params = {
     // Handle password reset challenge
     if (response.ChallengeName === "NEW_PASSWORD_REQUIRED") {
       const challenge = new RespondToAuthChallengeCommand({
-        ClientId: clientId,
+        ClientId: process.env.COGNITO_CLIENT_ID,
         ChallengeName: "NEW_PASSWORD_REQUIRED",
         Session: response.Session,
         ChallengeResponses: {
           USERNAME: username,
           NEW_PASSWORD: password,
-          ...(secretHash && { SECRET_HASH: secretHash }),
+          SECRET_HASH: secretHash,
         },
       });
       const finalResponse = await cognito.send(challenge);
