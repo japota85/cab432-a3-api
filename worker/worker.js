@@ -27,8 +27,14 @@ async function pollMessages() {
       const message = data.Messages[0];
       console.log("📩 Received message:", message.Body);
 
-      const body = JSON.parse(message.Body);
-      console.log(`Processing video ID: ${body.videoId}, task: ${body.task}`);
+      let body;
+        try {
+          body = JSON.parse(message.Body);
+          console.log(`Processing video ID: ${body.videoId || "N/A"}, task: ${body.task || "N/A"}`);
+        } catch (parseErr) {
+          console.warn("⚠️ Message is not valid JSON:", message.Body);
+          body = { raw: message.Body };
+        }
 
       await sqs
         .deleteMessage({
