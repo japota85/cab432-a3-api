@@ -67,6 +67,8 @@ router.post("/login", async (req, res) => {
     }
 
     const authResult = response.AuthenticationResult;
+    console.log("Cognito raw response:", JSON.stringify(response, null, 2));
+
     if (!authResult) return res.status(401).json({ error: "Login failed" });
 
     return res.json({
