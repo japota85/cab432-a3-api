@@ -46,6 +46,8 @@ router.post("/login", async (req, res) => {
     console.log(JSON.stringify(params, null, 2));
 
     const command = new InitiateAuthCommand(params);
+    console.log("Sending to Cognito with:", process.env.COGNITO_CLIENT_ID, process.env.COGNITO_USER_POOL_ID);
+
     const response = await cognito.send(command);
 
     // Handle password reset challenge
