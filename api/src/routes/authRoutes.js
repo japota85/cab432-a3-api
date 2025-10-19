@@ -71,15 +71,21 @@ router.post("/login", async (req, res) => {
     } catch (error) {
     console.error('[auth] login error:', error);
 
-    // Extract readable message
-    const message = error.message || error.name || 'Internal error';
-    const type = error.__type || error.code || 'UnknownError';
-    const awsDetails = error.$response?.data || error.$response?.body || null;
+    const message = error.message || 'Internal error';
+    const type = error.name || error.__type || 'UnknownError';
+
+    // Extract safe AWS details (no circular refs)
+    const awsInfo = {
+        statusCode: error.$metadata?.httpStatusCode,
+        requestId: error.$metadata?.requestId,
+        errorType: error.$response?.headers?.['x-amzn-errortype'],
+        errorMessage: error.$response?.headers?.['x-amzn-errormessage'],
+    };
 
     res.status(500).json({
         error: message,
         type,
-        awsDetails,
+        awsInfo,
     });
 }
 
