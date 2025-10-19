@@ -69,9 +69,20 @@ router.post("/login", async (req, res) => {
       },
     });
     } catch (error) {
-        console.error('[auth] login error:', error);
-        res.status(500).json({ error: error.message || 'Internal error', details: error });
-    }
+    console.error('[auth] login error:', error);
+
+    // Extract readable message
+    const message = error.message || error.name || 'Internal error';
+    const type = error.__type || error.code || 'UnknownError';
+    const awsDetails = error.$response?.data || error.$response?.body || null;
+
+    res.status(500).json({
+        error: message,
+        type,
+        awsDetails,
+    });
+}
+
 });
 
 // Protected route
