@@ -68,10 +68,10 @@ router.post("/login", async (req, res) => {
         refreshToken: authResult.RefreshToken,
       },
     });
-  } catch (err) {
-    console.error("[auth] login error:", err);
-    return res.status(500).json({ error: "Internal error" });
-  }
+    } catch (error) {
+        console.error('[auth] login error:', error);
+        res.status(500).json({ error: error.message || 'Internal error', details: error });
+    }
 });
 
 // Protected route
