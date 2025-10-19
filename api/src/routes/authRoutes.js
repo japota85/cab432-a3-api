@@ -22,43 +22,48 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "username and password are required" });
     }
 
-    const secretHash = process.env.COGNITO_CLIENT_SECRET
-      ? generateSecretHash(
-          username,
-          process.env.COGNITO_CLIENT_ID,
-          process.env.COGNITO_CLIENT_SECRET
-        )
+    // Detect whether to use client secret or not
+    const hasSecret = !!process.env.COGNITO_CLIENT_SECRET?.trim();
+    const clientId = process.env.COGNITO_CLIENT_ID;
+    const clientSecret = process.env.COGNITO_CLIENT_SECRET;
+
+    // Generate secret hash only if secret is present
+    const secretHash = hasSecret
+      ? crypto.createHmac("SHA256", clientSecret).update(username + clientId).digest("base64")
       : undefined;
 
-    const command = new InitiateAuthCommand({
-      AuthFlow: "USER_PASSWORD_AUTH",
-      ClientId: process.env.COGNITO_CLIENT_ID,
+    // Choose correct AuthFlow
+    const authFlow = hasSecret ? "USER_PASSWORD_AUTH" : "USER_SRP_AUTH";
+
+    const params = {
+      AuthFlow: authFlow,
+      ClientId: clientId,
       AuthParameters: {
         USERNAME: username,
         PASSWORD: password,
         ...(secretHash && { SECRET_HASH: secretHash }),
       },
-    });
+    };
 
+    const command = new InitiateAuthCommand(params);
     const response = await cognito.send(command);
 
     // Handle password reset challenge
     if (response.ChallengeName === "NEW_PASSWORD_REQUIRED") {
       const challenge = new RespondToAuthChallengeCommand({
-        ClientId: process.env.COGNITO_CLIENT_ID,
+        ClientId: clientId,
         ChallengeName: "NEW_PASSWORD_REQUIRED",
         Session: response.Session,
         ChallengeResponses: {
           USERNAME: username,
           NEW_PASSWORD: password,
-          SECRET_HASH: secretHash,
+          ...(secretHash && { SECRET_HASH: secretHash }),
         },
       });
       const finalResponse = await cognito.send(challenge);
       return res.json({ token: finalResponse.AuthenticationResult?.IdToken });
     }
 
-    // Normal login
     const authResult = response.AuthenticationResult;
     if (!authResult) return res.status(401).json({ error: "Login failed" });
 
@@ -70,27 +75,20 @@ router.post("/login", async (req, res) => {
         refreshToken: authResult.RefreshToken,
       },
     });
-    } catch (error) {
-    console.error('[auth] login error:', error);
+  } catch (error) {
+    console.error("[auth] login error:", error);
 
-    const message = error.message || 'Internal error';
-    const type = error.name || error.__type || 'UnknownError';
-
-    // Extract safe AWS details (no circular refs)
+    const message = error.message || "Internal error";
+    const type = error.name || error.__type || "UnknownError";
     const awsInfo = {
-        statusCode: error.$metadata?.httpStatusCode,
-        requestId: error.$metadata?.requestId,
-        errorType: error.$response?.headers?.['x-amzn-errortype'],
-        errorMessage: error.$response?.headers?.['x-amzn-errormessage'],
+      statusCode: error.$metadata?.httpStatusCode,
+      requestId: error.$metadata?.requestId,
+      errorType: error.$response?.headers?.["x-amzn-errortype"],
+      errorMessage: error.$response?.headers?.["x-amzn-errormessage"],
     };
 
-    res.status(500).json({
-        error: message,
-        type,
-        awsInfo,
-    });
-}
-
+    res.status(500).json({ error: message, type, awsInfo });
+  }
 });
 
 // Protected route
