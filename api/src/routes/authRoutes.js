@@ -41,6 +41,9 @@ router.post("/login", async (req, res) => {
         username: username,
       },
     };
+    
+    console.log("=== COGNITO PARAMS ===");
+    console.log(JSON.stringify(params, null, 2));
 
     const command = new InitiateAuthCommand(params);
     const response = await cognito.send(command);
