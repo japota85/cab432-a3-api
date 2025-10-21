@@ -29,12 +29,11 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/cpu", cpuRoutes);
 
 // Root test route
-// Root test route
 app.get("/", (_req, res) => {
-  res.send("🚀 CAB432 A2 Video API is running!");
+  res.send("🚀 CAB432 A3 Video API is running!");
 });
 
-// Test ElastiCache connection using helper functions
+// Test ElastiCache (Memcached) connection
 app.get("/test-cache", async (req, res) => {
   const key = "demoKey";
   const value = "Hello from ElastiCache!";
@@ -53,7 +52,7 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
     await initDB(); // test DB connection
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`✅ Server running on port ${PORT}`);
     });
   } catch (err) {
@@ -63,6 +62,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-
-

@@ -11,13 +11,11 @@ import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "../config/s3Client.js";
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import redis from "../config/redisClient.js";
 import { sendJobMessage } from "../utils/sendJobMessage.js";
 import { sendToQueue } from "../utils/sendToQueue.js";
 
-// 👇 add Memcached support (ElastiCache)
+// 👇 keep only Memcached support (ElastiCache)
 import { getCache, setCache } from "../config/cacheClient.js";
-import Redis from "ioredis";
 
 const router = express.Router();
 router.use(requireAuth);
@@ -26,18 +24,6 @@ const BUCKET_NAME = process.env.S3_BUCKET;
 
 // ✅ Detect environment
 const isProd = process.env.NODE_ENV === "production";
-
-// ✅ Local Redis client (fallback)
-let redisClient = null;
-if (!isProd) {
-  try {
-    redisClient = new Redis();
-    redisClient.on("connect", () => console.log("✅ Local Redis connected"));
-    redisClient.on("error", (err) => console.warn("⚠️ Redis error:", err.message));
-  } catch (err) {
-    console.warn("⚠️ Failed to init Redis:", err.message);
-  }
-}
 
 // ---- ensure ./uploads/raw exists ----
 const __filename = fileURLToPath(import.meta.url);
@@ -166,24 +152,14 @@ router.get("/", async (req, res) => {
       }
     }
 
-    // 2️⃣ Try Redis (local)
-    if (!isProd && redisClient) {
-      const cached = await redisClient.get(cacheKey);
-      if (cached) {
-        console.log("📦 Cache hit (Local Redis)");
-        return res.json(JSON.parse(cached));
-      }
-    }
-
-    // 3️⃣ Fallback to RDS
+    // 2️⃣ Fallback to RDS
     const { rows } = await pool.query(
       "SELECT id, s3_key, original_name, mime, size, uploaded_at FROM videos WHERE owner_sub = $1 ORDER BY uploaded_at DESC",
       [sub]
     );
 
-    // 4️⃣ Save cache
+    // 3️⃣ Save cache
     if (isProd) await setCache(cacheKey, JSON.stringify(rows), 30);
-    else if (redisClient) await redisClient.set(cacheKey, JSON.stringify(rows), "EX", 30);
 
     console.log("💾 Cache miss → DB queried");
     res.json(rows);
@@ -194,4 +170,3 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
-
