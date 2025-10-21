@@ -2,6 +2,8 @@ const AWS = require("aws-sdk");
 const dotenv = require("dotenv");
 const path = require("path");
 
+const cloudwatch = new AWS.CloudWatch({ region: process.env.AWS_REGION });
+
 // load the .env from the API folder
 dotenv.config({ path: path.resolve(__dirname, "../api/.env") });
 
@@ -10,6 +12,23 @@ console.log("Loaded SQS URL:", process.env.SQS_QUEUE_URL);
 AWS.config.update({ region: process.env.AWS_REGION });
 
 const sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
+  async function publishQueueMetric(count) {
+  try {
+    await cloudwatch.putMetricData({
+      Namespace: "CAB432/A3",
+      MetricData: [
+        {
+          MetricName: "PendingMessages",
+          Unit: "Count",
+          Value: count,
+        },
+      ],
+    }).promise();
+    console.log(`📊 Published CloudWatch metric: PendingMessages = ${count}`);
+  } catch (err) {
+    console.error("❌ Error publishing metric:", err);
+  }
+}
 
 async function pollMessages() {
   console.log("🎧 Worker started, polling messages from SQS...");
@@ -22,6 +41,10 @@ async function pollMessages() {
 
   try {
     const data = await sqs.receiveMessage(params).promise();
+      // Publish number of pending messages to CloudWatch (approximation)
+      const pendingCount = data.Messages ? data.Messages.length : 0;
+      await publishQueueMetric(pendingCount);
+
 
     if (data.Messages && data.Messages.length > 0) {
       const message = data.Messages[0];
