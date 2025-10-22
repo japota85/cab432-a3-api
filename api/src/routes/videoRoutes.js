@@ -13,6 +13,7 @@ import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { sendJobMessage } from "../utils/sendJobMessage.js";
 import { sendToQueue } from "../utils/sendToQueue.js";
+import AWS from "aws-sdk";
 
 // 👇 keep only Memcached support (ElastiCache)
 import { getCache, setCache } from "../config/cacheClient.js";
@@ -166,6 +167,26 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("[videos] list error:", err);
     res.status(500).json({ error: "Failed to list videos" });
+  }
+});
+
+
+// SQS test route
+
+router.post("/test-queue", async (req, res) => {
+  try {
+    const { videoId = "manual-test", s3Key = "test.mp4", userId = "tester", operation = "transcode" } = req.body;
+    const sqs = new AWS.SQS({ region: "ap-southeast-2" });
+    const params = {
+      QueueUrl: process.env.SQS_QUEUE_URL,
+      MessageBody: JSON.stringify({ videoId, s3Key, userId, operation }),
+    };
+    await sqs.sendMessage(params).promise();
+    console.log("✅ Test message sent to SQS");
+    res.status(200).json({ message: "✅ Test message sent to SQS" });
+  } catch (error) {
+    console.error("❌ SQS Send Error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
