@@ -19,6 +19,27 @@ import AWS from "aws-sdk";
 import { getCache, setCache } from "../config/cacheClient.js";
 
 const router = express.Router();
+
+// SQS test route
+
+router.post("/test-queue", async (req, res) => {
+  try {
+    const { videoId = "manual-test", s3Key = "test.mp4", userId = "tester", operation = "transcode" } = req.body;
+    const sqs = new AWS.SQS({ region: "ap-southeast-2" });
+    const params = {
+      QueueUrl: process.env.SQS_QUEUE_URL,
+      MessageBody: JSON.stringify({ videoId, s3Key, userId, operation }),
+    };
+    await sqs.sendMessage(params).promise();
+    console.log("✅ Test message sent to SQS");
+    res.status(200).json({ message: "✅ Test message sent to SQS" });
+  } catch (error) {
+    console.error("❌ SQS Send Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 router.use(requireAuth);
 
 const BUCKET_NAME = process.env.S3_BUCKET;
@@ -167,26 +188,6 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("[videos] list error:", err);
     res.status(500).json({ error: "Failed to list videos" });
-  }
-});
-
-
-// SQS test route
-
-router.post("/test-queue", async (req, res) => {
-  try {
-    const { videoId = "manual-test", s3Key = "test.mp4", userId = "tester", operation = "transcode" } = req.body;
-    const sqs = new AWS.SQS({ region: "ap-southeast-2" });
-    const params = {
-      QueueUrl: process.env.SQS_QUEUE_URL,
-      MessageBody: JSON.stringify({ videoId, s3Key, userId, operation }),
-    };
-    await sqs.sendMessage(params).promise();
-    console.log("✅ Test message sent to SQS");
-    res.status(200).json({ message: "✅ Test message sent to SQS" });
-  } catch (error) {
-    console.error("❌ SQS Send Error:", error);
-    res.status(500).json({ error: error.message });
   }
 });
 
