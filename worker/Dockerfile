@@ -16,3 +16,6 @@ ENV AWS_REGION=ap-southeast-2
 
 # Start the worker
 CMD ["node", "worker.js"]
+
+RUN npm install @aws-sdk/client-s3 @aws-sdk/client-sqs
+
