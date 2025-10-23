@@ -26,6 +26,7 @@ router.post("/test-queue", async (req, res) => {
   try {
     const { videoId = "manual-test", s3Key = "test.mp4", userId = "tester", operation = "transcode" } = req.body;
     const sqs = new AWS.SQS({ region: "ap-southeast-2" });
+    console.log("🔍 process.env.SQS_QUEUE_URL =", process.env.SQS_QUEUE_URL);
     const params = {
       QueueUrl: process.env.SQS_QUEUE_URL,
       MessageBody: JSON.stringify({ videoId, s3Key, userId, operation }),
