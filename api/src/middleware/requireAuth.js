@@ -1,32 +1,34 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
+import dotenv from "dotenv";
 
-console.log("🟡 Loading requireAuth middleware...");
+dotenv.config({ path: "./.env" });
 
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.COGNITO_USER_POOL_ID,
-  tokenUse: "access",
-  clientId: process.env.COGNITO_CLIENT_ID,
-});
+// Create verifier once (outside handler)
+let verifier;
 
 export async function requireAuth(req, res, next) {
-  console.log("🔹 requireAuth called");
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      console.log("❌ No Authorization header");
+    if (!verifier) {
+      verifier = CognitoJwtVerifier.create({
+        userPoolId: process.env.COGNITO_USER_POOL_ID,
+        clientId: process.env.COGNITO_CLIENT_ID,
+        tokenUse: "access",
+      });
+      console.log("✅ Cognito AccessToken verifier initialized");
+    }
+
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
       return res.status(401).json({ error: "Missing token" });
     }
 
-    const token = authHeader.split(" ")[1];
-    console.log("🟢 Token received (first 50 chars):", token.slice(0, 50));
-
+    // Verify access token
     const payload = await verifier.verify(token);
-    console.log("✅ Token verified:", payload);
-
     req.user = payload;
+
     next();
   } catch (err) {
-    console.error("❌ Verification failed:", err.message);
+    console.error("❌ Auth error:", err.message);
     res.status(401).json({ error: "Invalid or expired token" });
   }
 }
