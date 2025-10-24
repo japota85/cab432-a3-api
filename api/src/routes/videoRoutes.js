@@ -15,7 +15,7 @@ import { sendJobMessage } from "../utils/sendJobMessage.js";
 import { sendToQueue } from "../utils/sendToQueue.js";
 import AWS from "aws-sdk";
 
-// 👇 keep only Memcached support (ElastiCache)
+// (ElastiCache)
 import { getCache, setCache } from "../config/cacheClient.js";
 
 const router = express.Router();
@@ -45,7 +45,7 @@ router.use(requireAuth);
 
 const BUCKET_NAME = process.env.S3_BUCKET;
 
-// ✅ Detect environment
+// Detect environment
 const isProd = process.env.NODE_ENV === "production";
 
 // ---- ensure ./uploads/raw exists ----
