@@ -8,7 +8,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import pool from "../config/db.js";
 import { exec } from "child_process";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { s3Client } from "../config/s3Client.js";
+import s3Client from "../config/s3Client.js";
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { sendJobMessage } from "../utils/sendJobMessage.js";
