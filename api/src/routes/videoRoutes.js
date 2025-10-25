@@ -166,7 +166,11 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
     });
   } catch (err) {
     console.error("[videos] upload error:", err);
-    res.status(500).json({ error: "Upload failed" });
+    res.status(500).json({ 
+    error: "Upload failed",
+    message: err.message,
+    stack: err.stack,
+     });
   }
 });
 
