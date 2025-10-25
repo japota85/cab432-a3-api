@@ -145,7 +145,7 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
     await sendJobMessage(safeId, processedKey, req.user.username);
 
     // 4️⃣ Clean up
-    try { fs.unlinkSync(file.path); } catch {}
+    try { fs.unlinkSync(tempRawPath); } catch {}
     try { fs.unlinkSync(processedPath); } catch {}
 
     // 5️⃣ Save metadata in RDS
