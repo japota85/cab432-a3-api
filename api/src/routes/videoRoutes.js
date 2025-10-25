@@ -111,7 +111,10 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
     // 2️⃣ Process with ffmpeg
     const processedPath = path.join(OUT_DIR, `${safeId}.mp4`);
     await new Promise((resolve, reject) => {
-      const cmd = `ffmpeg -i "${file.path}" -vf scale=640:-1 -c:v libx264 -preset fast -crf 28 -c:a aac "${processedPath}" -y`;
+      const tempRawPath = path.join(RAW_DIR, `${safeId}_temp.mp4`);
+      fs.writeFileSync(tempRawPath, file.buffer);
+
+      const cmd = `ffmpeg -i "${tempRawPath}" -vf scale=640:-1 -c:v libx264 -preset fast -crf 28 -c:a aac "${processedPath}" -y`;
 
       console.log("[ffmpeg] Starting processing...");
       exec(cmd, (error, stdout, stderr) => {
