@@ -90,11 +90,16 @@ router.post("/upload", requireAuth, upload.single("video"), async (req, res) => 
     const rawKey = `raw/${safeId}.mp4`;
     const processedKey = `processed/${safeId}.mp4`;
 
-    // 1️⃣ Upload original to S3
+    // 1️⃣ Upload original to S3 (directly from memory buffer)
+    if (!file || !file.buffer) {
+      console.error("[videos] No file buffer received");
+      return res.status(400).json({ error: "No file uploaded or file buffer missing" });
+    }
+
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: rawKey,
-      Body: fs.createReadStream(file.path),
+      Body: file.buffer, // ✅ use in-memory buffer instead of fs.createReadStream
       ContentType: file.mimetype,
     }));
 
