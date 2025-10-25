@@ -74,7 +74,7 @@ const fileFilter = (_req, file, cb) => {
 
 const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 200);
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: { fileSize: MAX_MB * 1024 * 1024 },
 });
