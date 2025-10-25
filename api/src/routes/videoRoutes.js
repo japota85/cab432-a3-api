@@ -84,6 +84,11 @@ const upload = multer({
 // POST /api/videos/upload  (protected)
 router.post("/upload", requireAuth, upload.single("video"), async (req, res) => {
   try {
+    console.log("=== [UPLOAD DEBUG] Route triggered ===");
+    console.log("req.file =", req.file);
+    console.log("AWS S3 Bucket =", process.env.S3_BUCKET);
+    console.log("AWS_ACCESS_KEY_ID =", process.env.AWS_ACCESS_KEY_ID ? "Loaded" : "Missing");
+    console.log("AWS_REGION =", process.env.AWS_REGION);    
     const file = req.file;
 
     const safeId = uuid();
