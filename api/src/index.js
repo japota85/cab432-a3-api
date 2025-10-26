@@ -52,6 +52,14 @@ app.get("/testlog", (req, res) => {
   res.status(200).send("✅ Log generated from ECS container!");
 });
 
+app.get("/loadtest", (req, res) => {
+  const start = Date.now();
+  while (Date.now() - start < 10000) {
+    Math.sqrt(Math.random() * 1e7);
+  }
+  res.send("CPU load simulated!");
+});
+
 // heartbeat logger
 setInterval(() => {
   console.log(`[HEARTBEAT] API still running at ${new Date().toISOString()}`);
@@ -69,14 +77,6 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-
-app.get("/loadtest", (req, res) => {
-  const start = Date.now();
-  while (Date.now() - start < 10000) {
-    Math.sqrt(Math.random() * 1e7);
-  }
-  res.send("CPU load simulated!");
-});
 
 // Health check endpoint for ECS
 app.get("/health", (req, res) => {
