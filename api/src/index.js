@@ -52,12 +52,20 @@ app.get("/testlog", (req, res) => {
   res.status(200).send("✅ Log generated from ECS container!");
 });
 
-app.get('/loadtest', (req, res) => {
-  const end = Date.now() + 15000;
+app.get("/loadtest", (req, res) => {
+  const durationMs = Number(req.query.duration) || 60000; // default 1 min
+  const end = Date.now() + durationMs;
+  let result = 0;
+
+  // Continuous heavy math loop
   while (Date.now() < end) {
-    Math.sqrt(Math.random() * 9999999);
+    for (let i = 0; i < 1e7; i++) {
+      result += Math.sqrt(i * Math.random());
+      if (result > 1e6) result = 0; // prevent overflow
+    }
   }
-  res.send('CPU load simulated for 15 seconds');
+
+  res.status(200).send(`✅ CPU stress completed for ${durationMs / 1000}s`);
 });
 
 // heartbeat logger
