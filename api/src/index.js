@@ -54,7 +54,7 @@ app.get("/testlog", (req, res) => {
 
 app.get("/loadtest", (req, res) => {
   const start = Date.now();
-  while (Date.now() - start < 30000) {
+  while (Date.now() - start < 60000) {
     Math.sqrt(Math.random() * 1e7);
   }
   res.send("CPU load simulated!");
