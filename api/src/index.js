@@ -32,6 +32,8 @@ app.get("/", (_req, res) => {
   res.send("🚀 CAB432 A3 Video API is running!");
 });
 
+// ... existing imports and routes above ...
+
 // Test ElastiCache (Memcached) connection
 app.get("/test-cache", async (req, res) => {
   const key = "demoKey";
@@ -46,11 +48,21 @@ app.get("/test-cache", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// Quick route to test logging
+app.get("/testlog", (req, res) => {
+  console.log(`[TESTLOG] /testlog endpoint hit at ${new Date().toISOString()}`);
+  res.status(200).send("✅ Log generated from ECS container!");
+});
 
+// heartbeat logger
+setInterval(() => {
+  console.log(`[HEARTBEAT] API still running at ${new Date().toISOString()}`);
+}, 15000);
+
+const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
-    await initDB(); // test DB connection
+    await initDB();
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`✅ Server running on port ${PORT}`);
     });
@@ -61,9 +73,9 @@ const startServer = async () => {
 };
 
 // Health check endpoint for ECS
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
 });
 
-
 startServer();
+
