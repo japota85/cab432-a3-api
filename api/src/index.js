@@ -53,19 +53,19 @@ app.get("/testlog", (req, res) => {
 });
 
 app.get("/loadtest", (req, res) => {
-  const durationMs = Number(req.query.duration) || 60000; // default 1 min
+  const durationMs = Number(req.query.duration) || 120000; // default 2 minutes
   const end = Date.now() + durationMs;
   let result = 0;
 
-  // Continuous heavy math loop
+  // Intense CPU loop: full single-core saturation
   while (Date.now() < end) {
-    for (let i = 0; i < 1e7; i++) {
+    for (let i = 0; i < 1e8; i++) {
       result += Math.sqrt(i * Math.random());
-      if (result > 1e6) result = 0; // prevent overflow
+      if (result > 1e9) result = 0;
     }
   }
 
-  res.status(200).send(`✅ CPU stress completed for ${durationMs / 1000}s`);
+  res.status(200).send(`Load test completed after ${durationMs / 1000} seconds`);
 });
 
 // heartbeat logger
