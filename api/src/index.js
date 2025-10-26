@@ -32,8 +32,6 @@ app.get("/", (_req, res) => {
   res.send("🚀 CAB432 A3 Video API is running!");
 });
 
-// ... existing imports and routes above ...
-
 // Test ElastiCache (Memcached) connection
 app.get("/test-cache", async (req, res) => {
   const key = "demoKey";
@@ -71,6 +69,14 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+app.get("/loadtest", (req, res) => {
+  const start = Date.now();
+  while (Date.now() - start < 10000) {
+    Math.sqrt(Math.random() * 1e7);
+  }
+  res.send("CPU load simulated!");
+});
 
 // Health check endpoint for ECS
 app.get("/health", (req, res) => {
