@@ -52,12 +52,12 @@ app.get("/testlog", (req, res) => {
   res.status(200).send("✅ Log generated from ECS container!");
 });
 
-app.get("/loadtest", (req, res) => {
-  const start = Date.now();
-  while (Date.now() - start < 60000) {
-    Math.sqrt(Math.random() * 1e7);
+app.get('/loadtest', (req, res) => {
+  const end = Date.now() + 15000;
+  while (Date.now() < end) {
+    Math.sqrt(Math.random() * 9999999);
   }
-  res.send("CPU load simulated!");
+  res.send('CPU load simulated for 15 seconds');
 });
 
 // heartbeat logger
